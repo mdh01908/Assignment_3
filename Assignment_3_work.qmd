@@ -1,0 +1,162 @@
+---
+title: "HW3"
+author: "Michelle Hernandez"
+format:
+  html:
+    embed-resources: true
+editor: visual
+---
+
+```{r}
+setwd('/Users/michellehernandez/Desktop/DataScience/HW3')
+
+library(data.table)
+library(ggplot2)
+library(tidytext)
+library(readr)
+library(dplyr)
+library(forcats)
+```
+
+```{r}
+
+dat <- read.csv("/Users/michellehernandez/Desktop/DataScience/HW3/pubmed.csv")
+```
+
+```{r}
+dat %>%
+  count('term', sort = TRUE)
+# the categories found through this method are overlapping 
+
+unique(dat$term)
+length(unique(dat$term))
+```
+
+## Question 1
+
+1.  Tokenize the abstracts and count the number of each token. Do you see anything interesting? Does removing stop words change what tokens appear as the most frequent? What are the 5 most common tokens for each search term after removing stopwords?
+
+```{r}
+dat %>%
+  unnest_tokens(words, abstract) %>%
+  count(words) %>%
+  top_n(20,n)
+
+
+  
+dat %>%
+  unnest_tokens(words, abstract) %>%
+  count(words) %>%
+  top_n(20,n) %>%
+  ggplot(aes(n,words)) +
+  geom_col()
+
+
+```
+
+Unsurprisingly the most common words are those that are commonly used in all sentences: *the, is, and, with, to...* etc*.* We can tell this is likely from medical or scientific documentation as some unique top words such as: *covid, cancer, patients, prostate*, that are specific scientific terminology.
+
+#### **remove stop words** 
+
+```{r}
+dat %>%
+  unnest_tokens(words, abstract) %>%
+  anti_join(stop_words, by=c("words" = "word")) %>%
+  count(words, sort=TRUE) %>%
+  filter(!grepl('[0-9]', words)) %>%
+  top_n(20,n)
+
+dat %>%
+  unnest_tokens(words, abstract) %>%
+  anti_join(stop_words, by=c("words" = "word")) %>%
+  count(words, sort=TRUE) %>%
+  top_n(20,n) %>%
+  filter(!grepl('[0-9]', words)) %>%
+  ggplot(aes(n,words)) +
+  geom_col()
+```
+
+**Find 5 most common words for each term after removing stop words**
+
+```{r}
+
+dat %>%
+  unnest_tokens(words, abstract) %>%
+  anti_join(stop_words, by = c("words" = "word")) %>%
+  group_by(term) %>%
+  count(words, sort = TRUE) %>%
+  filter(!grepl('[0-9]', words)) %>%
+  arrange(term, desc(n)) %>%  
+  group_by(term) %>%
+  slice(1:5)
+```
+
+Removing the stop words does change the most common tokens appear most frequently. We can see from the output the top words for each term, after removing stop words, are unique words that relate to the search term. For each search term, the most common words include the search term themselves and words relating to the topic. For example, it is not surprising that for the search term 'preeclampsia', which is a medical condition that affects pregnant women, *women* and *pregnancy* are the most common words outside of the search term itself.
+
+The top 5 words for the search term covid are: *covid, patients, disease, pandemic, coronavirus*
+
+The top 5 words for the search term cystic fibrosis are: *fibrosis, cystic, cf, patients, disease*
+
+The top 5 words for the search term meningitis are: *patients, meningitis, meningeal, csf, clinical*
+
+The top 5 words for the search term preeclampsia are: *pre, ecplampsia, preeclampsia, women, pregnancy*
+
+## Question 2
+
+Tokenize the abstracts into bigrams. Find the 10 most common bigrams and visualize them with ggplot2.
+
+```{r}
+dat %>%
+  unnest_ngrams(ngram2, abstract, n = 2) %>%
+  count(ngram2, sort=TRUE) %>%
+  top_n(10,n)
+
+dat %>%
+  unnest_ngrams(ngram2, abstract, n = 2) %>%
+  count(ngram2, sort=TRUE) %>%
+  top_n(20,n)%>%
+  ggplot(aes(x = fct_reorder(ngram2, n), y = n)) +
+  geom_col() +
+  labs(title = "Top 10 Bigrams in Abstracts", x = "Bigram", y = "Frequency") +
+  coord_flip() +
+  theme_minimal()
+```
+
+## Question 3
+
+Calculate the TF-IDF value for each word-search term combination (here you want the search term to be the "document"). What are the 5 tokens from each search term with the highest TF-IDF value? How are the results different from the answers you got in question 1?
+
+```{r}
+# dat %>%
+#   unnest_tokens(abstract, abstract) %>%
+#   count(abstract, term) %>%
+#   bind_tf_idf(abstract, term, n) %>%
+#   arrange(desc(tf_idf))
+
+```
+
+```{r}
+
+dat %>%
+  unnest_tokens(abstract, abstract) %>%
+  anti_join(stop_words, by = c("abstract" = "word")) %>%
+  group_by(term) %>%
+  count(abstract, term) %>%
+  bind_tf_idf(abstract, term, n) %>%
+  filter(!grepl('[0-9]', term)) %>%
+  arrange(term, desc(tf_idf)) %>%  
+  group_by(term) %>%
+  slice(1:5)
+
+
+```
+
+*covid* is still the most common word for the search term covid. However *pandemic* and *coronavirus* replaced the #2 and #3 slot from #1 which were more common words (*patients*, *disease*). New words introduced for the search term covid are in order: *coronavirus, sars, cov*.
+
+For the search term cystic fibrosis has the same top 3 words however the order here is different. In question 1 the top 3 in order were: *fibrosis, cystic, cf*. Using the TF-IDF score the order changes to: *cf, fibrosis, cystic*. New words introduced for the search term cystic fibrosis, are, in order: *cftr* and *sweat*
+
+For the search term meningitis the order for the top 3 words changed from: *patients*, *meningitis, meningeal* to *meningitis, meningeal, pachymeningitis. csf* remains the 4th most common word and *meninges* replaced *clinical* as the 5th most common word.
+
+Similarly for the preeclampsia search term the order of the top few words from #1 has changed order and a few new words were added. Common, generic words *pre* and *women* are not included here.
+
+We can see here that there are unique words that did not come up as top words before. For example, sweat is one of the top words for cystic fibrosis. Apparently excess sweating is in fact a symptom for those with cystic fibrosis (https://www.mayoclinic.org/diseases-conditions/cystic-fibrosis/symptoms-causes/syc-20353700). Similarly for the search preeclampsia we see more complex words relating to the disease, ie *gestational* and *maternal.* The TF-IDF analysis revealed words that are distinct to each search term and helped shed light on the relevance of these words in the context of their respective search terms compared to question 1.
